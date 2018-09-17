@@ -175,7 +175,7 @@ static PyObject *search(PyObject *self, PyObject *args)
 }
 
 static PyMethodDef module_methods[] = {
-{"search", search, METH_VARARGS, "Binary search on the lines of a bed file"},
+{"search", search, METH_VARARGS, "search(filename, number_to_search)\nReturns (line, byte_offset) or None"},
 {NULL, NULL, 0, NULL}
 };
 
