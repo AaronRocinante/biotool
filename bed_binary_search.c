@@ -127,12 +127,14 @@ static PyObject *search(PyObject *self, PyObject *args)
     long long number_to_search;
     if (!PyArg_ParseTuple(args, "sL", &filename, &number_to_search))
     {
+        PyErr_SetString(SearchError, "failed to parse arguments");
         ReturnPyNone();
     }
 
     FILE *file;
     if (!(file = fopen(filename, "r")))
     {
+        PyErr_SetString(SearchError, "failed to open file");
         ReturnPyNone();
     }
 
@@ -140,6 +142,7 @@ static PyObject *search(PyObject *self, PyObject *args)
 
     if (stat(filename, &file_stats) != 0)
     {
+        PyErr_SetString(SearchError, "failed to get file stats");
         ReturnPyNone();
     }
     ssize_t file_byte_size = file_stats.st_size;
