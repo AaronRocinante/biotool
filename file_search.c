@@ -30,9 +30,14 @@ typedef struct SearchResult
     int found;
 } SearchResult;
 
+inline int max_of_two(int a, int b)
+{
+    return a > b ? a : b;
+}
+
 ssize_t get_start_byte_offset(int const num_header_lines, FILE *file)
 {
-    size_t header_buffer_size = 1024;
+    size_t header_buffer_size = 256;
     char *header = (char *) malloc(sizeof(char) * header_buffer_size);
     ssize_t num_bytes_read, start_byte_offset = 0;
 
@@ -50,7 +55,33 @@ ssize_t get_start_byte_offset(int const num_header_lines, FILE *file)
     return start_byte_offset;
 }
 
-OptionalLongLong get_location_from_line(char const *line, int const field_index, char const *sep)
+/**
+ * Converts a string into a long long and save it into result
+ * @param string the string to be converted
+ * @param result if the conversion is successfull, result will contain the converted long long.
+ * Otherwise, the content of the result will remain unchanged.
+ * @return 0 for success; -1 for failure.
+ */
+int strtoll_with_check(char const *string, long long *result)
+{
+    errno = 0;
+    char *endptr;
+    long long number = strtoll(string, &endptr, 10);
+    if ((errno == ERANGE && (number == LLONG_MIN || number == LLONG_MAX)) || (errno != 0 && number == 0))
+    {
+        perror("strtoll_with_check strtoll");
+        return -1;
+    }
+    if (endptr == string)
+    {
+        fprintf(stderr, "no digits were found in: %s\n", string);
+        return -1;
+    }
+    *result = number;
+    return 0;
+}
+
+OptionalLongLong get_long_long_from_line(char const *line, int const field_index, char const *sep)
 {
     OptionalLongLong optional_location = {.valid=0};
     if (!line || strlen(line) == 0)
@@ -60,7 +91,6 @@ OptionalLongLong get_location_from_line(char const *line, int const field_index,
 
     char *copied_line = (char *) malloc(sizeof(char) * (1 + strlen(line)));
     strcpy(copied_line, line);
-    char *endptr;
     errno = 0;
     int index = 0;
     char *token = strtok(copied_line, sep);
@@ -69,16 +99,9 @@ OptionalLongLong get_location_from_line(char const *line, int const field_index,
     {
         if (index == field_index)
         {
-            location = strtoll(token, &endptr, 10);
-            if ((errno == ERANGE && (location == LLONG_MIN || location == LLONG_MAX)) || (errno != 0 && location == 0))
+            if (strtoll_with_check(token, &location) == -1)
             {
                 fprintf(stderr, "failed to get location from field %d (0-based) in line: %s\n", field_index, line);
-                perror("get_location_from_line");
-                break;
-            }
-            if (endptr == token)
-            {
-                fprintf(stderr, "no digits were found in field %d (0-based) in line: %s\n", field_index, line);
                 break;
             }
         }
@@ -92,11 +115,6 @@ OptionalLongLong get_location_from_line(char const *line, int const field_index,
     return optional_location;
 }
 
-inline int max_of_two(int a, int b)
-{
-    return a > b ? a : b;
-}
-
 StartEndPair get_start_end_from_line(char const *line, int const start_index, int const end_index)
 {
     StartEndPair pair = {.valid=0};
@@ -108,8 +126,6 @@ StartEndPair get_start_end_from_line(char const *line, int const start_index, in
     char *copied_line = (char *) malloc(sizeof(char) * (1 + strlen(line)));
     strcpy(copied_line, line);
     char const delim[2] = " \t";
-    char *endptr;
-    errno = 0;
 
     int index = 0;
     int larger_index = max_of_two(start_index, end_index);
@@ -123,34 +139,19 @@ StartEndPair get_start_end_from_line(char const *line, int const start_index, in
     {
         if (index == start_index)
         {
-            start = strtoll(token, &endptr, 10);
-            if ((errno == ERANGE && (start == LLONG_MIN || start == LLONG_MAX)) || (errno != 0 && start == 0))
+            if (strtoll_with_check(token, &start) == -1)
             {
-                fprintf(stderr, "failed to get start from the first field in line: %s\n", line);
-                perror("get_location_from_line");
-                exit(EXIT_FAILURE);
-            }
-            if (endptr == token)
-            {
-                fprintf(stderr, "no digits were found in the first field in line: %s\n", line);
-                exit(EXIT_FAILURE);
+                fprintf(stderr, "failed to get start from field %d (0-based) in line: %s\n", start_index, line);
+                break;
             }
             pair.start = start;
         }
         if (index == end_index)
         {
-            end_exclusive = strtoll(token, &endptr, 10);
-            if ((errno == ERANGE && (end_exclusive == LLONG_MIN || end_exclusive == LLONG_MAX)) ||
-                (errno != 0 && end_exclusive == 0))
+            if (strtoll_with_check(token, &end_exclusive) == -1)
             {
-                fprintf(stderr, "failed to get end_exclusive from the %d field in line: %s\n", start_index, line);
-                perror("get_location_from_line");
-                exit(EXIT_FAILURE);
-            }
-            if (endptr == token)
-            {
-                fprintf(stderr, "no digits were found in the %d field in line: %s\n", end_index, line);
-                exit(EXIT_FAILURE);
+                fprintf(stderr, "failed to get end_exclusive from field %d (0-based) in line: %s\n", end_index, line);
+                break;
             }
             pair.end_exclusive = end_exclusive;
         }
@@ -166,9 +167,8 @@ StartEndPair get_start_end_from_line(char const *line, int const start_index, in
 
 SearchResult not_found = {.line = NULL, .low = 0, .found=0};
 
-SearchResult
-binary_search(ssize_t low, ssize_t high, long long const number, int const field_index, char const *sep,
-              FILE *file, char *line, size_t *buffer_size)
+SearchResult binary_search(ssize_t low, ssize_t high, long long const number, int const field_index, char const *sep,
+                           FILE *file, char *line, size_t *buffer_size)
 {
     if (low > high)
     {
@@ -181,7 +181,7 @@ binary_search(ssize_t low, ssize_t high, long long const number, int const field
     {
         fseek(file, low, SEEK_SET);
         getline(&line, buffer_size, file);
-        location = get_location_from_line(line, field_index, sep);
+        location = get_long_long_from_line(line, field_index, sep);
         if (!location.valid)
         {
             return not_found;
@@ -218,7 +218,7 @@ binary_search(ssize_t low, ssize_t high, long long const number, int const field
     ++mid;
 
     getline(&line, buffer_size, file);
-    location = get_location_from_line(line, field_index, sep);
+    location = get_long_long_from_line(line, field_index, sep);
 
     if (!location.valid)
     {
@@ -271,7 +271,7 @@ static PyObject *search(PyObject *self, PyObject *args, PyObject *kwargs)
     ssize_t start_byte_offset = get_start_byte_offset(num_header_lines, file);
 
     size_t *buffer_size = (size_t *) malloc(sizeof(size_t));
-    *buffer_size = 1024;
+    *buffer_size = 256;
     char *line = (char *) malloc(sizeof(char) * (*buffer_size));
 
     SearchResult result = binary_search(start_byte_offset, file_byte_size, number_to_search, field_index, sep,
@@ -406,7 +406,7 @@ static PyObject *bed_search(PyObject *self, PyObject *args, PyObject *kwargs)
     ssize_t start_byte_offset = get_start_byte_offset(num_header_lines, file);
 
     size_t *buffer_size = (size_t *) malloc(sizeof(size_t));
-    *buffer_size = 1024;
+    *buffer_size = 256;
     char *line = (char *) malloc(sizeof(char) * (*buffer_size));
 
     SearchResult result = {.found=0};
@@ -437,13 +437,18 @@ static PyMethodDef module_methods[] = {
      "search(filename, number_to_search, num_header_lines=1, field_index=0, sep=' \\t')\n\n"
      "binary search for the line containing number_to_search in a sorted file "
      "each of whose lines contain a number\n"
+     ":type filename: str\n"
+     ":type number_to_search: int\n"
      ":param num_header_lines: number of header lines to skip\n"
      ":param field_index: 0-based index indicating which field in each line the number is\n"
+     ":param sep: the field separator can be each of the characters in the sep string, default to whitespace and tabs\n"
      ":return: (line, byte_offset) or None"},
 
     {"bed_search", (PyCFunction) bed_search, METH_VARARGS | METH_KEYWORDS,
      "bed_search(filename, number_to_search, num_header_lines=1)\n\n"
      "binary search for the line containing number_to_search in a sorted BED file\n"
+     ":type filename: str\n"
+     ":type number_to_search: int\n"
      ":param num_header_lines: number of header lines to skip\n"
      ":return: (line, byte_offset) or None"},
     {NULL, NULL, 0, NULL}
