@@ -1,9 +1,10 @@
 from distutils.core import setup, Extension
 
-module1 = Extension('bed_binary_search', sources=['bed_binary_search.c'])
+file_binary_search_module = Extension('file_binary_search', sources=['file_search.c'])
 
-setup(name='bed_binary_search',
-      version='0.1.2',
+setup(name='biotool',
+      version='0.1.5',
       license='Apache License, Version 2.0',
       description='BED file binary search, skips the first line of the file',
-      ext_modules=[module1])
+      ext_package='biotool',
+      ext_modules=[file_binary_search_module])
