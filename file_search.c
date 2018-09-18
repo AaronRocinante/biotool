@@ -30,7 +30,7 @@ typedef struct SearchResult
     int found;
 } SearchResult;
 
-ssize_t get_start_byte_offset(int num_header_lines, FILE *file)
+ssize_t get_start_byte_offset(int const num_header_lines, FILE *file)
 {
     size_t header_buffer_size = 1024;
     char *header = (char *) malloc(sizeof(char) * header_buffer_size);
@@ -50,7 +50,7 @@ ssize_t get_start_byte_offset(int num_header_lines, FILE *file)
     return start_byte_offset;
 }
 
-OptionalLongLong get_location_from_line(char const *line, int field_index)
+OptionalLongLong get_location_from_line(char const *line, int const field_index, char const *sep)
 {
     OptionalLongLong optional_location = {.valid=0};
     if (!line || strlen(line) == 0)
@@ -60,11 +60,10 @@ OptionalLongLong get_location_from_line(char const *line, int field_index)
 
     char *copied_line = (char *) malloc(sizeof(char) * (1 + strlen(line)));
     strcpy(copied_line, line);
-    char const delim[2] = ",";
     char *endptr;
     errno = 0;
     int index = 0;
-    char *token = strtok(copied_line, delim);
+    char *token = strtok(copied_line, sep);
     long long location = 0;
     do
     {
@@ -83,7 +82,7 @@ OptionalLongLong get_location_from_line(char const *line, int field_index)
                 break;
             }
         }
-        token = strtok(NULL, delim);
+        token = strtok(NULL, sep);
         ++index;
     } while (index <= field_index && token != NULL);
 
@@ -98,7 +97,7 @@ inline int max_of_two(int a, int b)
     return a > b ? a : b;
 }
 
-StartEndPair get_start_end_from_line(char const *line, int start_index, int end_index)
+StartEndPair get_start_end_from_line(char const *line, int const start_index, int const end_index)
 {
     StartEndPair pair = {.valid=0};
     if (!line || strlen(line) == 0)
@@ -168,7 +167,8 @@ StartEndPair get_start_end_from_line(char const *line, int start_index, int end_
 SearchResult not_found = {.line = NULL, .low = 0, .found=0};
 
 SearchResult
-binary_search(ssize_t low, ssize_t high, long long number, int field_index, FILE *file, char *line, size_t *buffer_size)
+binary_search(ssize_t low, ssize_t high, long long const number, int const field_index, char const *sep,
+              FILE *file, char *line, size_t *buffer_size)
 {
     if (low > high)
     {
@@ -181,7 +181,7 @@ binary_search(ssize_t low, ssize_t high, long long number, int field_index, FILE
     {
         fseek(file, low, SEEK_SET);
         getline(&line, buffer_size, file);
-        location = get_location_from_line(line, field_index);
+        location = get_location_from_line(line, field_index, sep);
         if (!location.valid)
         {
             return not_found;
@@ -210,7 +210,7 @@ binary_search(ssize_t low, ssize_t high, long long number, int field_index, FILE
         // we'd know that the line we're searching for could only be in the left half.
         if (mid == high)
         {
-            return binary_search(low, original_mid, number, field_index, file, line, buffer_size);
+            return binary_search(low, original_mid, number, field_index, sep, file, line, buffer_size);
         }
     }
     // When we hit the newline character, the mid would not be incremented in the while loop body,
@@ -218,11 +218,11 @@ binary_search(ssize_t low, ssize_t high, long long number, int field_index, FILE
     ++mid;
 
     getline(&line, buffer_size, file);
-    location = get_location_from_line(line, field_index);
+    location = get_location_from_line(line, field_index, sep);
 
     if (!location.valid)
     {
-        return binary_search(low, original_mid, number, field_index, file, line, buffer_size);
+        return binary_search(low, original_mid, number, field_index, sep, file, line, buffer_size);
     }
     else if (location.value == number)
     {
@@ -231,11 +231,11 @@ binary_search(ssize_t low, ssize_t high, long long number, int field_index, FILE
     }
     else if (location.value > number)
     {
-        return binary_search(low, original_mid, number, field_index, file, line, buffer_size);
+        return binary_search(low, original_mid, number, field_index, sep, file, line, buffer_size);
     }
     else
     {
-        return binary_search(mid, high, number, field_index, file, line, buffer_size);
+        return binary_search(mid, high, number, field_index, sep, file, line, buffer_size);
     }
 }
 
@@ -244,9 +244,10 @@ static PyObject *search(PyObject *self, PyObject *args, PyObject *kwargs)
     char *filename;
     long long number_to_search;
     int num_header_lines = 1, field_index = 0;
-    static char *keywords[] = {"filename", "number_to_search", "num_header_lines", "field_index", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sL|ii", keywords, &filename, &number_to_search, &num_header_lines,
-                                     &field_index))
+    char *sep = " \t";
+    static char *keywords[] = {"filename", "number_to_search", "num_header_lines", "field_index", "sep", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sL|iis", keywords, &filename, &number_to_search, &num_header_lines,
+                                     &field_index, &sep))
     {
         PyErr_SetString(SearchError, "failed to parse arguments");
         return NULL;
@@ -273,8 +274,8 @@ static PyObject *search(PyObject *self, PyObject *args, PyObject *kwargs)
     *buffer_size = 1024;
     char *line = (char *) malloc(sizeof(char) * (*buffer_size));
 
-    SearchResult result = binary_search(start_byte_offset, file_byte_size, number_to_search, field_index, file, line,
-                                        buffer_size);
+    SearchResult result = binary_search(start_byte_offset, file_byte_size, number_to_search, field_index, sep,
+                                        file, line, buffer_size);
 
     fclose(file);
     PyObject *val;
@@ -302,7 +303,8 @@ static PyObject *search(PyObject *self, PyObject *args, PyObject *kwargs)
  * @param buffer_size
  * @return
  */
-SearchResult bed_binary_search(ssize_t low, ssize_t high, long long number, FILE *file, char *line, size_t *buffer_size)
+SearchResult bed_binary_search(ssize_t low, ssize_t high, long long const number, FILE *file, char *line,
+                               size_t *buffer_size)
 {
     if (low > high)
     {
@@ -432,7 +434,7 @@ static PyObject *bed_search(PyObject *self, PyObject *args, PyObject *kwargs)
 
 static PyMethodDef module_methods[] = {
     {"search", (PyCFunction) search, METH_VARARGS | METH_KEYWORDS,
-     "search(filename, number_to_search, num_header_lines=1, field_index=0)\n\n"
+     "search(filename, number_to_search, num_header_lines=1, field_index=0, sep=' \\t')\n\n"
      "binary search for the line containing number_to_search in a sorted file "
      "each of whose lines contain a number\n"
      ":param num_header_lines: number of header lines to skip\n"
@@ -463,7 +465,8 @@ PyMODINIT_FUNC PyInit_file_binary_search(void)
     {
         return NULL;
     }
-    SearchError = PyErr_NewExceptionWithDoc("file_binary_search.FileSearchException", "FileSearchException", NULL, NULL);
+    SearchError = PyErr_NewExceptionWithDoc("file_binary_search.FileSearchException", "FileSearchException", NULL,
+                                            NULL);
     Py_INCREF(SearchError);
     PyModule_AddObject(module, "FileSearchException", SearchError);
     return module;
