@@ -18,15 +18,20 @@ FUNCTIONS
         bed_search(filename, number_to_search, num_header_lines=1)
         
         binary search for the line containing number_to_search in a sorted BED file
+        :type filename: str
+        :type number_to_search: int
         :param num_header_lines: number of header lines to skip
         :return: (line, byte_offset) or None
     
     search(...)
-        search(filename, number_to_search, num_header_lines=1, field_index=0)
+        search(filename, number_to_search, num_header_lines=1, field_index=0, sep=' \t')
         
         binary search for the line containing number_to_search in a sorted file each of whose lines contain a number
+        :type filename: str
+        :type number_to_search: int
         :param num_header_lines: number of header lines to skip
         :param field_index: 0-based index indicating which field in each line the number is
+        :param sep: the field separator can be each of the characters in the sep string, default to whitespace and tabs
         :return: (line, byte_offset) or None
 ```
 
