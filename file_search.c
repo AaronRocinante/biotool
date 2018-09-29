@@ -6,8 +6,6 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#define ReturnPyNone() ({Py_INCREF(Py_None); return Py_None;})
-
 static PyObject *SearchError;
 
 typedef struct OptionalLongLong
@@ -165,7 +163,7 @@ StartEndPair get_start_end_from_line(char const *line, int const start_index, in
     return pair;
 }
 
-SearchResult not_found = {.line = NULL, .low = 0, .found=0};
+static SearchResult not_found = {.line = NULL, .low = 0, .found=0};
 
 SearchResult binary_search(ssize_t low, ssize_t high, long long const number, int const field_index, char const *sep,
                            FILE *file, char *line, size_t *buffer_size)
@@ -436,7 +434,7 @@ static PyMethodDef module_methods[] = {
     {"search", (PyCFunction) search, METH_VARARGS | METH_KEYWORDS,
      "search(filename, number_to_search, num_header_lines=1, field_index=0, sep=' \\t')\n\n"
      "binary search for the line containing number_to_search in a sorted file "
-     "each of whose lines contain a number\n"
+     "each of whose lines contains a number at the 0-based field_index\n"
      ":type filename: str\n"
      ":type number_to_search: int\n"
      ":param num_header_lines: number of header lines to skip\n"
@@ -447,6 +445,7 @@ static PyMethodDef module_methods[] = {
     {"bed_search", (PyCFunction) bed_search, METH_VARARGS | METH_KEYWORDS,
      "bed_search(filename, number_to_search, num_header_lines=1)\n\n"
      "binary search for the line containing number_to_search in a sorted BED file\n"
+     "Assumes there is only one chromosome in the file and the intervals in the file are sorted and do not overlap"
      ":type filename: str\n"
      ":type number_to_search: int\n"
      ":param num_header_lines: number of header lines to skip\n"
