@@ -18,6 +18,8 @@ FUNCTIONS
         bed_search(filename, number_to_search, num_header_lines=1)
         
         binary search for the line containing number_to_search in a sorted BED file
+        Assumes there is only one chromosome in the file and the intervals in the file are sorted 
+        and do not overlap
         :type filename: str
         :type number_to_search: int
         :param num_header_lines: number of header lines to skip
@@ -26,7 +28,8 @@ FUNCTIONS
     search(...)
         search(filename, number_to_search, num_header_lines=1, field_index=0, sep=' \t')
         
-        binary search for the line containing number_to_search in a sorted file each of whose lines contain a number
+        binary search for the line containing number_to_search in a sorted file each of whose lines 
+        contains a number at the 0-based field_index
         :type filename: str
         :type number_to_search: int
         :param num_header_lines: number of header lines to skip
