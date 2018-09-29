@@ -445,7 +445,7 @@ static PyMethodDef module_methods[] = {
     {"bed_search", (PyCFunction) bed_search, METH_VARARGS | METH_KEYWORDS,
      "bed_search(filename, number_to_search, num_header_lines=1)\n\n"
      "binary search for the line containing number_to_search in a sorted BED file\n"
-     "Assumes there is only one chromosome in the file and the intervals in the file are sorted and do not overlap"
+     "Assumes there is only one chromosome in the file and the intervals in the file are sorted and do not overlap\n"
      ":type filename: str\n"
      ":type number_to_search: int\n"
      ":param num_header_lines: number of header lines to skip\n"
